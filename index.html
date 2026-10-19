@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3321">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="카드 게임">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>카드 게임</title>
+<style>
+  :root { --felt:#1f5f3f; --felt-dark:#174a31; --gold:#e8c35a; --ok:#5fe08a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+         background:var(--felt-dark); color:#eee; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:8px 16px; background:#0f3321; }
+  header h1 { font-size:18px; margin:0 12px 0 0; }
+  button, select, input { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid #567; background:#fff; color:#111; }
+  button { cursor:pointer; background:var(--gold); border-color:#a8862c; font-weight:600; }
+  button:disabled { opacity:.4; cursor:default; }
+  button.sec { background:#cde; }
+  label { font-size:14px; }
+  main { display:grid; grid-template-columns:1fr 380px; min-height:calc(100vh - 50px); }
+  .table { display:grid; grid-template-columns:150px 1fr 150px; grid-template-rows:auto 1fr auto; gap:10px; padding:12px;
+           background:radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 80%); }
+  .zone { background:rgba(0,0,0,.15); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:8px 10px; }
+  .zone h2 { margin:0 0 6px; font-size:14px; font-weight:600; color:var(--gold); }
+  .zone.active { border-color:var(--gold); box-shadow:0 0 12px rgba(232,195,90,.5); }
+  #north { grid-column:2; grid-row:1; }
+  #south { grid-column:2; grid-row:3; }
+  #west  { grid-column:1; grid-row:2; align-self:center; text-align:center; }
+  #east  { grid-column:3; grid-row:2; align-self:center; text-align:center; }
+  #center{ grid-column:2; grid-row:2; display:flex; align-items:center; justify-content:center; }
+  .cards { display:flex; flex-wrap:wrap; gap:6px; min-height:84px; }
+  .card { width:58px; height:82px; border-radius:6px; background:#fff; color:#111; position:relative;
+          box-shadow:0 2px 4px rgba(0,0,0,.4); font-weight:700; user-select:none; flex:none; }
+  .card .idx { position:absolute; left:4px; top:2px; font-size:13px; line-height:1.05; text-align:center; }
+  .card .mid { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .card.red { color:#c41f1f; }
+  .card.back { background:repeating-linear-gradient(45deg,#7a1f2b 0 6px,#5e1621 6px 12px); border:3px solid #fff; }
+  .card.small { width:34px; height:46px; }
+  .card.small .idx { font-size:11px; }
+  .card.small .mid { font-size:14px; top:14px; }
+  .hand .card { cursor:pointer; transition:transform .1s; }
+  .hand .card.focus { transform:translateY(-8px); box-shadow:0 0 0 3px #7cf, 0 4px 8px rgba(0,0,0,.5); }
+  .hand .card.selected { transform:translateY(-14px); box-shadow:0 0 0 4px var(--gold), 0 4px 8px rgba(0,0,0,.5); }
+  .hand .card.dead { opacity:.45; }
+  .hand .card.played { outline:3px solid #f7a; }
+  .grid { display:grid; grid-template-columns:52px 150px 150px 52px; grid-template-rows:52px 220px 220px 52px; gap:6px; }
+  .slot { border-radius:8px; position:relative; }
+  .slot.edge { display:flex; align-items:center; justify-content:center; font-size:22px; color:rgba(255,255,255,.25);
+               border:1px dashed rgba(255,255,255,.2); }
+  .slot.cell { background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.18); }
+  .slot.legal { border:2px solid var(--ok); color:var(--ok); background:rgba(95,224,138,.12); cursor:pointer; }
+  .slot.hint { border:2px dashed rgba(95,224,138,.6); }
+  .slot.cursor { box-shadow:0 0 0 3px #7cf; }
+  .slot.last { box-shadow:0 0 0 3px rgba(232,195,90,.8); }
+  .slot.bestmark { box-shadow:0 0 0 3px #7f7; }
+  .slot .cnum { position:absolute; right:6px; bottom:4px; font-size:12px; color:#cfd; }
+  .slot .cname { position:absolute; right:6px; top:4px; font-size:12px; color:rgba(255,255,255,.4); }
+  .stack .card { position:absolute; left:46px; }
+  .comp-card { display:inline-block; margin:6px auto; transition:transform .3s; }
+  .comp-card.tamed { transform:rotate(90deg); }
+  .tag { display:inline-block; padding:1px 7px; border-radius:9px; font-size:12px; font-weight:700; margin-left:4px; }
+  .tag.first { background:var(--gold); color:#222; }
+  .tag.second { background:#8ab; color:#111; }
+  .tag.tame { background:#b65; color:#fff; }
+  .tag.wild { background:#c3f; color:#fff; }
+  .row { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .pile { font-size:12px; color:#cfd; }
+  .pile .cards { min-height:0; gap:3px; }
+  aside { background:#123b28; padding:12px; font-size:13px; line-height:1.55; overflow-y:auto; max-height:calc(100vh - 50px); }
+  aside h3 { margin:12px 0 4px; font-size:14px; color:var(--gold); }
+  aside table { border-collapse:collapse; width:100%; }
+  aside td, aside th { border:1px solid rgba(255,255,255,.15); padding:2px 6px; text-align:center; }
+  .dom { color:var(--ok); font-weight:700; }
+  #status { font-size:15px; font-weight:600; background:rgba(0,0,0,.3); border-radius:8px; padding:8px 10px; }
+  #log { font-size:12px; color:#bcd; max-height:200px; overflow-y:auto; }
+  #log div { border-bottom:1px solid rgba(255,255,255,.06); padding:1px 0; }
+  .keys { font-size:12px; color:#9ab; }
+  #aiThink { font-size:12px; color:#dfe; background:rgba(0,0,0,.25); border-radius:8px; padding:6px 8px; }
+  /* 복기 */
+  #replayBar { display:none; gap:8px; align-items:center; background:rgba(0,0,0,.35); border-radius:8px; padding:6px 8px; margin:6px 0; flex-wrap:wrap; }
+  #replayBar input[type=range] { flex:1; min-width:120px; }
+  #replayBar .cur { font-size:12px; color:#dfe; }
+  /* 분석 */
+  #anPanel { display:none; }
+  #chart { width:100%; height:110px; background:rgba(0,0,0,.3); border-radius:8px; }
+  .mv { display:flex; gap:6px; align-items:center; padding:2px 4px; border-radius:6px; cursor:pointer; font-size:12px; }
+  .mv:hover, .mv.sel { background:rgba(255,255,255,.12); }
+  .mv .q { width:38px; text-align:right; color:#dfe; }
+  .badge { display:inline-block; min-width:44px; text-align:center; padding:0 5px; border-radius:8px; font-size:11px; font-weight:700; color:#111; }
+  .b-best { background:#7f7; } .b-good { background:#bfa; } .b-inaccuracy { background:#fe8; } .b-mistake { background:#f96; } .b-blunder { background:#f55; color:#fff; } .b-giveaway { background:#a0f; color:#fff; }
+  #cmt { background:rgba(0,0,0,.3); border-radius:8px; padding:8px; font-size:12.5px; white-space:normal; }
+  #cmt .hl { font-weight:700; color:#ffd; margin-bottom:4px; }
+  #cmt ul { margin:4px 0 0 16px; padding:0; } #cmt li { margin:3px 0; }
+  #cands { font-size:11.5px; color:#cde; max-height:140px; overflow-y:auto; }
+  #prog { font-size:12px; color:#9fb; }
+  #modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:10; }
+  #modal .box { background:#1b4a33; border:2px solid var(--gold); border-radius:12px; padding:16px 20px; max-width:90vw; }
+  #modal .alloc { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+  #modal .item { display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px; border-radius:8px; border:2px solid transparent; }
+  #modal .item.focus { border-color:#7cf; }
+  #modal .item button { font-size:12px; padding:2px 6px; background:#ddd; border-color:#999; }
+  #modal .item button.on { background:var(--gold); }
+
+  button, .hand .card, .slot.legal, .mv { touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  /* 좁은 화면(아이폰·아이패드 세로) */
+  @media (max-width: 860px) {
+    body { -webkit-text-size-adjust:100%; }
+    header { gap:8px; padding:8px 10px; }
+    header h1 { font-size:16px; margin:0 6px 0 0; }
+    button, select, input { font-size:16px; padding:6px 10px; }
+    main { grid-template-columns:1fr; min-height:0; }
+    .table { grid-template-columns:1fr 1fr; grid-template-rows:auto; padding:8px; gap:8px; }
+    #north, #south, #center { grid-column:1 / 3; grid-row:auto; }
+    #north { order:1; } #west { order:2; grid-column:1; grid-row:auto; } #east { order:3; grid-column:2; grid-row:auto; }
+    #center { order:4; } #south { order:5; }
+    .grid { grid-template-columns:40px minmax(0,1fr) minmax(0,1fr) 40px; grid-template-rows:40px 200px 200px 40px; width:min(100%,420px); }
+    .card { width:48px; height:70px; } .card .mid { font-size:22px; }
+    .cards { min-height:72px; }
+    aside { max-height:none; overflow:visible; padding-bottom:calc(12px + env(safe-area-inset-bottom)); }
+    #cands, #log { max-height:240px; }
+    #chart { height:96px; }
+    .keys { display:none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🃏 카드 게임</h1>
+  <button id="newBtn">새 게임</button>
+  <label>시드 <input id="seed" size="8" placeholder="랜덤"></label>
+  <label>AI
+    <select id="level">
+      <option value="S">강함 (이론 전략 + 가능세계 64개 병렬 검증)</option>
+      <option value="12">보통 (상대 응수 고려)</option>
+      <option value="0">쉬움 (한 수 앞)</option>
+    </select>
+  </label>
+  <button id="endBtn" disabled title="미는 합법수가 없을 때만 가능">종료 선언</button>
+  <span style="flex:1"></span>
+  <button id="replayBtn" class="sec" disabled title="게임이 끝난 뒤 복기">복기</button>
+  <button id="anBtn" class="sec" disabled title="게임이 끝난 뒤 분석">분석</button>
+  <label>세계 <select id="anW"><option value="16">16</option><option value="32" selected>32</option><option value="64">64</option></select></label>
+  <label><input type="checkbox" id="anAI"> AI 수도</label>
+  <button id="saveBtn" class="sec" title="기록(+분석) JSON 저장">저장</button>
+  <label class="sec" style="background:#cde;color:#111;border-radius:6px;padding:4px 10px;cursor:pointer">불러오기<input type="file" id="loadFile" accept=".json" style="display:none"></label>
+</header>
+
+<main>
+<div class="table">
+  <div class="zone" id="north"></div>
+  <div class="zone" id="west"></div>
+  <div id="center"><div class="grid" id="grid"></div></div>
+  <div class="zone" id="east"></div>
+  <div class="zone" id="south"></div>
+</div>
+<aside>
+  <div id="status"></div>
+  <div id="replayBar">
+    <button id="rpFirst" class="sec">⏮</button><button id="rpPrev" class="sec">◀</button>
+    <input type="range" id="rpRange" min="0" max="0" value="0">
+    <button id="rpNext" class="sec">▶</button><button id="rpLast" class="sec">⏭</button>
+    <button id="rpExit" class="sec">복기 끝</button>
+    <div class="cur" id="rpCur"></div>
+  </div>
+  <div class="keys">카드: 클릭 또는 ←→ + Enter · 칸: 클릭 또는 방향키 + Enter · Esc: 카드 다시 고르기 · 복기 중: ←→</div>
+  <div id="aiThink"></div>
+  <div id="anPanel">
+    <h3>분석 — 내 관점 승률 <span id="prog"></span></h3>
+    <canvas id="chart" width="360" height="110"></canvas>
+    <div id="mvList"></div>
+    <div id="cmt"></div>
+    <div id="cands"></div>
+  </div>
+  <h3>세팅 정보</h3><div id="setupInfo"></div>
+  <h3>레벨 (문양별 개수, 초록 = 우위)</h3><div id="levels"></div>
+  <h3>현재 판 기준 점수</h3><div id="scoreInfo"></div>
+  <h3>기록</h3><div id="log"></div>
+</aside>
+</main>
+
+<div id="modal"><div class="box">
+  <div id="modalTitle"></div>
+  <div class="alloc" id="allocList"></div>
+  <div class="keys">←→ 카드 이동 · ↑ 시장 · ↓ 레벨 · Space 전환 · Enter 확정</div>
+  <div style="margin-top:10px;text-align:right"><button id="allocOk">확정</button></div>
+</div></div>
+
+<script src="bundle.js?v=202610190022"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && location.hostname !== '127.0.0.1' && location.hostname !== 'localhost' || /[?&]sw=1/.test(location.search)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+<script>
+const { Engine: E, AI, Strong: ST, Record: REC } = window.CG;
+const HUMAN = 'A', BOT = 'B';
+const NAME = { A: '나', B: 'AI' };
+const $ = id => document.getElementById(id);
+
+const LAYOUT = [
+  [null, 'T0', 'T1', null],
+  ['L0', 'C0', 'C1', 'R1'],
+  ['L2', 'C2', 'C3', 'R3'],
+  [null, 'B2', 'B3', null],
+];
+const ARROW = { T: '↓', B: '↑', L: '→', R: '←' };
+const CELL_NAME = ['1', '2', '3', '4'];
+const moveKey = m => m.kind === 'cover' ? 'C' + m.cell : m.edge;
+
+let st, rand, ui, rec, strong = null, view = null;   // view: 복기 중 보여주는 상태(없으면 st)
+let analysis = null;   // { results: {i: res}, idx: [...] }
+
+function cardEl(c, opts = {}) {
+  const d = document.createElement('div');
+  if (!c || c.r === '?') { d.className = 'card back' + (opts.small ? ' small' : ''); return d; }
+  d.className = 'card' + (c.s === '♥' || c.s === '♦' ? ' red' : '') + (opts.small ? ' small' : '');
+  d.innerHTML = `<span class="idx">${c.r}${c.s}</span><span class="mid">${c.s}</span>`;
+  return d;
+}
+const sortCards = h => [...h].sort((x, y) => E.rv(x) - E.rv(y) || E.SUITS.indexOf(x.s) - E.SUITS.indexOf(y.s));
+const cstr = c => `${c.s}${c.r}`;
+function moveText(m) {
+  if (m.kind === 'cover') return `${cstr(m.card)} → ${CELL_NAME[m.cell]}번 셀 덮기`;
+  const [a] = E.EDGES[m.edge];
+  const side = { T: '위', B: '아래', L: '왼쪽', R: '오른쪽' }[m.edge[0]];
+  return `${cstr(m.card)} → ${CELL_NAME[a]}번 ${side}에서 밀기`;
+}
+function log(msg) {
+  const d = document.createElement('div'); d.textContent = msg;
+  $('log').prepend(d);
+}
+const isStrong = () => $('level').value === 'S';
+
+// ---------- 강한 AI 워커 ----------
+function startStrong() {
+  if (strong) strong.terminate();
+  strong = new Worker('worker.js?v=202610190022');
+  strong.pending = {};
+  strong.onerror = e => { console.error('worker error', e.message); log('AI 워커 오류: ' + e.message); };
+  strong.onmessage = e => {
+    const d = e.data;
+    if (d.type === 'error') { console.error(d.message); log('AI 오류: ' + d.message.split('\n')[0] + ' → 보통 AI로 대신 둠'); const cb = strong.pending[d.id]; if (cb) { delete strong.pending[d.id]; cb({ fallback: true }); } return; }
+    const cb = strong.pending[d.id]; if (cb) { delete strong.pending[d.id]; cb(d); }
+  };
+  strong.postMessage({ type: 'init', opts: { W: 16, time: 20000 } });
+  ensurePool();
+}
+let msgId = 0;
+function askStrong(msg) {
+  return new Promise(res => { const id = ++msgId; strong.pending[id] = res; strong.postMessage({ ...msg, id }); });
+}
+// 평가 워커 풀: 가능세계를 나눠 맡아 후보 전체를 병렬 평가
+let pool = [];
+const TOTAL_W = 64, EVAL_TIME = 12000;
+function ensurePool() {
+  if (pool.length) return;
+  const n = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+  for (let k = 0; k < n; k++) {
+    const w = new Worker('worker.js?v=202610190022'); w.pending = {};
+    w.onmessage = e => { const d = e.data; const cb = w.pending[d.id]; if (cb) { delete w.pending[d.id]; cb(d); } };
+    w.onerror = e => console.error('eval worker', e.message);
+    pool.push(w);
+  }
+}
+function askPool(w, msg) { return new Promise(res => { const id = ++msgId; w.pending[id] = res; w.postMessage({ ...msg, id }); }); }
+async function strongDecide() {
+  const t0 = Date.now();
+  const t = await askStrong({ type: 'theory', state: pub(), me: BOT });
+  if (t.fallback || t.end) return t;
+  if (t.endgame) return { ...t.theory, info: { label: t.label, endgame: 1, ms: Date.now() - t0 } };
+  ensurePool();
+  const per = Math.ceil(TOTAL_W / pool.length);
+  const parts = await Promise.all(pool.map((w, k) => askPool(w, { type: 'eval', state: pub(), me: BOT, keys: t.cands, W: per, seed: (Date.now() + k * 7919) >>> 0, time: EVAL_TIME, cont: t.cont })));
+  const ok = parts.filter(p => p.type === 'eval');
+  const q = t.cands.map((_, i) => [].concat(...ok.map(p => p.q[i])));
+  const worlds = q.length ? q[0].length : 0;
+  if (!worlds) return { ...t.theory, info: { label: t.label, ms: Date.now() - t0 } };
+  const c = ST.combine(t.theoryKey, t.cands, q, 'margin', 0.03);
+  const cand = ST.candFromKey(st, BOT, c.pick);
+  const info = { ...c, label: t.label, theoryKey: t.theoryKey, chosenKey: c.pick, ms: Date.now() - t0, endgame: 0 };
+  if (cand.end) return { end: true, info };
+  return { move: { kind: cand.move.kind, cell: cand.move.cell, edge: cand.move.edge, card: { r: cand.move.card.r, s: cand.move.card.s } }, alloc: cand.alloc, info };
+}
+const pub = () => ST.publicView(st, BOT);
+function thinkText(info) {
+  if (!info) return '';
+  if (info.label === 'end') return 'AI: 지금 끝내면 이겨서 종료 선언';
+  const lab = { "A'": '시장 축적형', B5: '우위+시장 절약형', C1: '잠금형(막판 D)' }[info.label] || info.label;
+  let s = `AI 생각: 현재 이론 전략 = ${lab}` + (info.endgame ? ' (막판 정확 계산)' : '');
+  if (info.n) s += ` · 이론 수 ${info.rank}위/${info.n} (승률 ${Math.round(info.qTheory * 100)}%, 최선 ${Math.round(info.qBest * 100)}%) → ${info.overridden ? '기각, 롤아웃 최선수' : '유지'} · 세계 ${info.worlds}개 ${(info.ms / 1000).toFixed(1)}s`;
+  return s;
+}
+
+// ---------- 게임 진행 ----------
+function newGame() {
+  const seedTxt = $('seed').value.trim();
+  rand = seedTxt ? E.mulberry32(E.hashSeed(seedTxt)) : Math.random;
+  st = E.newGame(rand);
+  rec = REC.newRecord(st, NAME, { seed: seedTxt || null, level: $('level').value, t: new Date().toISOString() });
+  ui = { phase: 'wait', handIdx: 0, selected: null, cursor: null, moves: [], last: null, gen: (ui?.gen || 0) + 1 };
+  view = null; analysis = null; $('anPanel').style.display = 'none'; $('replayBar').style.display = 'none';
+  $('replayBtn').disabled = $('anBtn').disabled = true;
+  $('aiThink').textContent = '';
+  $('log').innerHTML = '';
+  log(`게임 시작 — 선공: ${NAME[st.setup.first]}, 후공: ${NAME[st.setup.second]}` +
+      (st.setup.reshuffles ? ` (A 개수까지 같아 ${st.setup.reshuffles}번 다시 섞음)` : ''));
+  if (isStrong()) startStrong();
+  step();
+}
+
+function finish(reason, by) {
+  st.over = E.finalResult(st, reason, by);
+  REC.pushAction(rec, { t: 'E', o: by, reason });
+  REC.finishRecord(rec, st.over);
+  ui.phase = 'over';
+  const r = st.over;
+  log(`게임 종료 (${reason === 'declared' ? NAME[by] + ' 종료 선언' : NAME[by] + ' 합법수 없음'})` +
+      ` — 점수 나 ${r.score.A} : AI ${r.score.B}, 시장 ${r.marketSize.A}장 : ${r.marketSize.B}장`);
+  $('replayBtn').disabled = $('anBtn').disabled = false;
+  try { localStorage.setItem('cg_last', JSON.stringify(rec)); } catch (e) {}
+  render();
+}
+
+function later(fn, ms) { const g = ui.gen; setTimeout(() => { if (ui.gen === g) fn(); }, ms); }
+
+function step() {
+  if (st.over) return finish(st.over.reason, st.over.by);
+  const a = E.actor(st);
+  ui.selected = null; ui.moves = []; ui.cursor = null;
+  if (a.t === 'P') {
+    const info = E.playerTurnInfo(st, a.o);
+    if (info.mustEnd) return finish('noMove', a.o);
+    if (a.o === HUMAN) {
+      ui.phase = 'hand'; ui.info = info;
+      ui.handIdx = Math.min(ui.handIdx, st.hands.A.length - 1);
+      render();
+    } else {
+      ui.phase = 'ai'; render();
+      if (isStrong()) {
+        const g = ui.gen;
+        strongDecide().then(d => {
+          if (ui.gen !== g) return;
+          if (d.fallback) { const x = AI.choosePlayer(st, BOT, { samples: 12 }); if (x.end) return finish('declared', BOT); return execute(BOT, x.move, false, x.alloc); }
+          $('aiThink').textContent = thinkText(d.info);
+          if (d.end) return finish('declared', BOT);
+          const card = st.hands.B.find(c => c.r === d.move.card.r && c.s === d.move.card.s);
+          const m = d.move.kind === 'push' ? { kind: 'push', edge: d.move.edge, card, gain: st.board[E.EDGES[d.move.edge][1]].length } : { kind: 'cover', cell: d.move.cell, card };
+          execute(BOT, m, false, d.alloc, d.info);
+        });
+      } else later(() => {
+        const d = AI.choosePlayer(st, BOT, { samples: +$('level').value });
+        if (d.end) return finish('declared', BOT);
+        execute(BOT, d.move, false, d.alloc);
+      }, 400);
+    }
+    return;
+  }
+  const o = a.o;
+  const { moves, wild } = E.companionMoves(st, o);
+  const who = o === HUMAN ? '내 동반자' : 'AI 동반자';
+  if (!moves.length) {
+    const was = st.comp[o].tamed;
+    E.doCompanionPass(st, o);
+    REC.pushAction(rec, { t: 'X', o });
+    log(`${who}: 합법수 없음 → ${was ? '길들여진 상태 유지' : '길들여짐'}`);
+    ui.phase = 'wait'; render();
+    return later(step, 500);
+  }
+  if (wild) log(`${who}: 길들여진 상태에서 합법수 발생 → 와일드카드 (${cstr(moves[0].card)})`);
+  if (o === BOT && isStrong()) {
+    ui.phase = 'wait'; render();
+    const g = ui.gen;
+    askStrong({ type: 'companion', state: pub(), o }).then(d => {
+      if (ui.gen !== g) return;
+      if (d.fallback) return execute(o, moves.length === 1 ? moves[0] : AI.chooseCompanion(st, o, moves), true, null, null, wild);
+      const m = moves.find(x => x.kind === d.move.kind && (x.kind === 'push' ? x.edge === d.move.edge : x.cell === d.move.cell)) || moves[0];
+      execute(o, m, true, d.alloc, null, wild);
+    });
+    return;
+  }
+  if (moves.length === 1) {
+    ui.phase = 'wait'; render();
+    return later(() => execute(o, moves[0], true, null, null, wild), 500);
+  }
+  if (o === HUMAN) {
+    ui.phase = 'comp'; ui.moves = moves; ui.wild = wild;
+    ui.cursor = posOf(moveKey(moves[0]));
+    render();
+  } else {
+    ui.phase = 'wait'; render();
+    later(() => execute(o, AI.chooseCompanion(st, o, moves), true, null, null, wild), 500);
+  }
+}
+
+// 수 실행: 카드 놓기 → (획득 시) 배분 → 다음 차례
+function execute(owner, m, isComp, allocOverride, info, wild) {
+  const before = isStrong() ? pub() : null;
+  const actor = { t: isComp ? 'C' : 'P', o: owner };
+  if (isComp) { st.comp[owner].deck.shift(); st.comp[owner].tamed = false; }
+  else { st.hands[owner] = st.hands[owner].filter(c => c !== m.card); st.played[owner].push(m.card); }
+  const cap = E.applyMove(st, m);
+  ui.last = moveKey(m);
+  const who = (isComp ? (owner === HUMAN ? '내 동반자' : 'AI 동반자') : NAME[owner]);
+  log(`${who}: ${moveText(m)}` + (cap.length ? ` (획득 ${cap.length}장: ${cap.map(cstr).join(' ')})` : ''));
+  const done = alloc => {
+    E.allocate(st, owner, cap, alloc);
+    if (cap.length) {
+      const toM = cap.filter((_, i) => alloc[i] !== 'L'), toL = cap.filter((_, i) => alloc[i] === 'L');
+      log(`  └ ${NAME[owner]} 배분 — 시장: ${toM.map(cstr).join(' ') || '없음'} / 레벨: ${toL.map(cstr).join(' ') || '없음'}`);
+    }
+    REC.pushAction(rec, { t: actor.t, o: owner, move: m, alloc, cap, wild, info: info ? { label: info.label, overridden: info.overridden, rank: info.rank, n: info.n, qTheory: info.qTheory, qBest: info.qBest } : undefined });
+    if (before && strong) strong.postMessage({ type: 'event', before, actor, move: { kind: m.kind, cell: m.cell, edge: m.edge, card: { r: m.card.r, s: m.card.s } }, alloc });
+    st.turn++;
+    ui.phase = 'wait'; render();
+    later(step, owner === HUMAN && !isComp ? 150 : 400);
+  };
+  if (!cap.length) return done([]);
+  if (owner === HUMAN) return openAlloc(cap, done);
+  done(allocOverride || AI.greedyAlloc(st, owner, cap));
+}
+
+// ---------- 사람 입력 ----------
+function humanHand() { return sortCards(st.hands.A); }
+function movesForCard(card) { return ui.info.moves.filter(m => m.card === card); }
+
+function selectCard(i) {
+  if (ui.phase !== 'hand' && ui.phase !== 'target') return;
+  const card = humanHand()[i];
+  const ms = movesForCard(card);
+  ui.handIdx = i;
+  if (!ms.length) { ui.phase = 'hand'; ui.selected = null; render(); return; }
+  ui.phase = 'target'; ui.selected = card; ui.moves = ms;
+  ui.cursor = posOf(moveKey(ms[0]));
+  render();
+}
+function chooseTarget(key) {
+  if (ui.phase !== 'target' && ui.phase !== 'comp') return;
+  const m = ui.moves.find(x => moveKey(x) === key);
+  if (!m) return;
+  const isComp = ui.phase === 'comp';
+  const wild = ui.wild;
+  ui.phase = 'wait';
+  execute(HUMAN, m, isComp, null, null, isComp && wild);
+}
+function posOf(key) {
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (LAYOUT[r][c] === key) return [r, c];
+  return [1, 1];
+}
+function moveCursor(dr, dc) {
+  let [r, c] = ui.cursor || [1, 1];
+  for (let k = 0; k < 3; k++) {
+    r += dr; c += dc;
+    if (r < 0 || r > 3 || c < 0 || c > 3) return;
+    if (LAYOUT[r][c]) { ui.cursor = [r, c]; render(); return; }
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (ui.phase === 'alloc') return allocKey(e);
+  if (view) { if (e.key === 'ArrowLeft') { e.preventDefault(); rpGo(view.k - 1); } else if (e.key === 'ArrowRight') { e.preventDefault(); rpGo(view.k + 1); } return; }
+  const dirs = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+  if (ui.phase === 'hand') {
+    const n = st.hands.A.length;
+    if (e.key === 'ArrowLeft') ui.handIdx = (ui.handIdx - 1 + n) % n;
+    else if (e.key === 'ArrowRight') ui.handIdx = (ui.handIdx + 1) % n;
+    else if (e.key === 'Enter') return e.preventDefault(), selectCard(ui.handIdx);
+    else return;
+    e.preventDefault(); render();
+  } else if (ui.phase === 'target' || ui.phase === 'comp') {
+    if (dirs[e.key]) { e.preventDefault(); moveCursor(...dirs[e.key]); }
+    else if (e.key === 'Enter') { e.preventDefault(); chooseTarget(LAYOUT[ui.cursor[0]][ui.cursor[1]]); }
+    else if (e.key === 'Escape' && ui.phase === 'target') { ui.phase = 'hand'; ui.selected = null; ui.moves = []; render(); }
+  }
+});
+
+// ---------- 배분 모달 ----------
+function openAlloc(cards, done) {
+  ui.phase = 'alloc';
+  ui.alloc = { cards, choice: cards.map(() => 'M'), focus: 0, done };
+  $('modal').style.display = 'flex';
+  renderAlloc();
+}
+function renderAlloc() {
+  const a = ui.alloc;
+  $('modalTitle').innerHTML =
+    `<b>획득한 카드 ${a.cards.length}장</b> — 한 장씩 <b>시장</b>(점수) 또는 <b>레벨</b>(우위)을 고르세요. 확정 후에는 바꿀 수 없습니다.`;
+  const list = $('allocList');
+  list.replaceChildren(...a.cards.map((c, i) => {
+    const item = document.createElement('div');
+    item.className = 'item' + (i === a.focus ? ' focus' : '');
+    item.append(cardEl(c));
+    for (const [v, label] of [['M', '시장'], ['L', '레벨']]) {
+      const b = document.createElement('button');
+      b.textContent = label; b.className = a.choice[i] === v ? 'on' : '';
+      b.onclick = () => { a.choice[i] = v; a.focus = i; renderAlloc(); };
+      item.append(b);
+    }
+    return item;
+  }));
+}
+function closeAlloc() {
+  const a = ui.alloc;
+  $('modal').style.display = 'none';
+  ui.phase = 'wait';
+  a.done(a.choice);
+}
+function allocKey(e) {
+  const a = ui.alloc, n = a.cards.length;
+  if (e.key === 'ArrowLeft') a.focus = (a.focus - 1 + n) % n;
+  else if (e.key === 'ArrowRight') a.focus = (a.focus + 1) % n;
+  else if (e.key === 'ArrowUp') a.choice[a.focus] = 'M';
+  else if (e.key === 'ArrowDown') a.choice[a.focus] = 'L';
+  else if (e.key === ' ') a.choice[a.focus] = a.choice[a.focus] === 'M' ? 'L' : 'M';
+  else if (e.key === 'Enter') { e.preventDefault(); return closeAlloc(); }
+  else return;
+  e.preventDefault(); renderAlloc();
+}
+$('allocOk').onclick = closeAlloc;
+
+// ---------- 복기 ----------
+function rpStates() { if (!view.states) view.states = REC.replay(rec); return view.states; }
+function startReplay(k) {
+  if (!rec || !rec.result) return;
+  view = { k: 0, states: null, bestKey: null };
+  rpStates();
+  $('replayBar').style.display = 'flex';
+  $('rpRange').max = rec.actions.length;
+  rpGo(k == null ? 0 : k);
+}
+function rpGo(k) {
+  if (!view) return;
+  const n = rec.actions.length;
+  view.k = Math.max(0, Math.min(n, k));
+  $('rpRange').value = view.k;
+  const a = rec.actions[view.k];
+  $('rpCur').textContent = view.k < n ? `${view.k + 1}/${n}: ${a.t === 'X' ? NAME[a.o] + ' 동반자 패스' : (a.t === 'C' ? NAME[a.o] + ' 동반자 ' : NAME[a.o] + ' ') + REC.moveText(a)}` : `${n}/${n}: 종료`;
+  if (analysis && analysis.results[view.k]) showCommentary(view.k); else if (analysis) { $('cmt').innerHTML = ''; $('cands').innerHTML = ''; }
+  render();
+}
+function exitReplay() { view = null; $('replayBar').style.display = 'none'; render(); }
+$('replayBtn').onclick = () => startReplay(0);
+$('rpExit').onclick = exitReplay;
+$('rpFirst').onclick = () => rpGo(0); $('rpLast').onclick = () => rpGo(rec.actions.length);
+$('rpPrev').onclick = () => rpGo(view.k - 1); $('rpNext').onclick = () => rpGo(view.k + 1);
+$('rpRange').oninput = e => rpGo(+e.target.value);
+
+// ---------- 분석 ----------
+function runAnalysis() {
+  if (!rec || !rec.result) return;
+  const W = +$('anW').value;
+  let idx = REC.decisionIdx(rec);
+  if (!$('anAI').checked) idx = idx.filter(i => rec.actions[i].o === HUMAN);
+  analysis = { results: {}, idx, W, done: 0 };
+  $('anPanel').style.display = 'block'; $('anBtn').disabled = true;
+  $('prog').textContent = `0/${idx.length} (세계 ${W}개)`;
+  $('mvList').innerHTML = ''; $('cmt').innerHTML = ''; $('cands').innerHTML = '';
+  const n = Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+  const nm = { A: { me: '나', op: 'AI' }, B: { me: 'AI', op: '나' } };
+  // 비싼(초반) 결정을 워커에 고르게 분배: 인덱스를 돌아가며 배정
+  const buckets = Array.from({ length: n }, () => []);
+  idx.forEach((i, k) => buckets[k % n].push(i));
+  const t0 = Date.now();
+  buckets.forEach(b => {
+    if (!b.length) return;
+    const w = new Worker('worker.js?v=202610190022');
+    w.onmessage = e => {
+      const d = e.data;
+      if (d.type === 'result') { analysis.results[d.i] = d.res; analysis.done++; $('prog').textContent = `${analysis.done}/${idx.length} (${((Date.now() - t0) / 1000).toFixed(0)}s)`; drawChart(); listMoves(); if (view && view.k === d.i) showCommentary(d.i); }
+      else if (d.type === 'analyzeDone') { w.terminate(); if (analysis.done >= idx.length) { $('anBtn').disabled = false; try { localStorage.setItem('cg_last_an', JSON.stringify(analysis)); } catch (err) {} } }
+      else if (d.type === 'error') { console.error(d.message); $('prog').textContent = '오류: ' + d.message.split('\n')[0]; w.terminate(); }
+    };
+    w.postMessage({ type: 'analyze', rec, idx: b, W, nm });
+  });
+  if (!view) startReplay(idx[0]);
+}
+$('anBtn').onclick = runAnalysis;
+const CLS_KO = { best: '최선', good: '좋음', inaccuracy: '부정확', mistake: '실수', blunder: '블런더', giveaway: '헌납' };
+function humanProb(r) { return r.me === HUMAN ? r.cands[r.chosen].q : 1 - r.cands[r.chosen].q; }
+function drawChart() {
+  const cv = $('chart'), ctx = cv.getContext('2d');
+  const Wc = cv.width, Hc = cv.height;
+  ctx.clearRect(0, 0, Wc, Hc);
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.moveTo(0, Hc / 2); ctx.lineTo(Wc, Hc / 2); ctx.stroke();
+  const idx = analysis.idx, n = rec.actions.length;
+  const x = i => 10 + (Wc - 20) * i / n, y = p => Hc - 8 - (Hc - 16) * p;
+  ctx.strokeStyle = '#7cf'; ctx.lineWidth = 2; ctx.beginPath(); let started = false;
+  for (const i of idx) { const r = analysis.results[i]; if (!r) continue; const p = humanProb(r); if (!started) { ctx.moveTo(x(i), y(p)); started = true; } else ctx.lineTo(x(i), y(p)); }
+  ctx.stroke();
+  for (const i of idx) {
+    const r = analysis.results[i]; if (!r) continue;
+    const col = { best: '#7f7', good: '#bfa', inaccuracy: '#fe8', mistake: '#f96', blunder: '#f55', giveaway: '#a0f' }[r.cls];
+    ctx.fillStyle = r.me === HUMAN ? col : 'rgba(255,255,255,.5)';
+    ctx.beginPath(); ctx.arc(x(i), y(humanProb(r)), r.me === HUMAN ? 4 : 3, 0, 7); ctx.fill();
+  }
+  if (view) { ctx.strokeStyle = 'rgba(232,195,90,.9)'; ctx.beginPath(); ctx.moveTo(x(view.k), 0); ctx.lineTo(x(view.k), Hc); ctx.stroke(); }
+  ctx.fillStyle = '#dfe'; ctx.font = '10px sans-serif'; ctx.fillText('100%', 2, 10); ctx.fillText('0%', 2, Hc - 2);
+}
+function listMoves() {
+  const el = $('mvList'); el.replaceChildren();
+  for (const i of analysis.idx) {
+    const r = analysis.results[i]; if (!r) continue;
+    const d = document.createElement('div'); d.className = 'mv' + (view && view.k === i ? ' sel' : '');
+    const a = rec.actions[i];
+    d.innerHTML = `<span class="badge b-${r.cls}">${CLS_KO[r.cls]}</span><span class="q">${Math.round(humanProb(r) * 100)}%</span><span>${r.me === HUMAN ? '나' : 'AI'}: ${REC.moveText(a)}</span>` + (r.cls !== 'best' ? `<span style="color:#fcc"> (${Math.round(-r.loss * 100)}%p)</span>` : '');
+    d.onclick = () => { if (!view) startReplay(i); else rpGo(i); };
+    el.append(d);
+  }
+}
+function showCommentary(i) {
+  const r = analysis.results[i]; if (!r) return;
+  const c = r.commentary;
+  $('cmt').innerHTML = `<div class="hl">${c.headline}</div><ul>${c.lines.map(l => `<li>${l}</li>`).join('')}</ul>`;
+  const top = r.cands.slice().sort((x, y) => x.rank - y.rank).slice(0, 8);
+  $('cands').innerHTML = '<b>후보 상위 8</b> (승률, 세계 ' + r.W + '개): ' + top.map(x => `${x.rank}. ${x.text} ${Math.round(x.q * 100)}%${x.key === r.cands[r.chosen].key ? ' ◀둔 수' : ''}`).join(' · ');
+  view.bestKey = r.cands[r.best].key;
+  for (const m of document.querySelectorAll('.mv')) m.classList.remove('sel');
+  drawChart(); listMoves();
+}
+// 저장/불러오기
+$('saveBtn').onclick = () => {
+  if (!rec) return;
+  const blob = new Blob([JSON.stringify({ rec, analysis: analysis ? { W: analysis.W, idx: analysis.idx, results: analysis.results } : null })], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `cardgame_${(rec.meta.t || '').replace(/[:.]/g, '-')}.json`; a.click();
+};
+$('loadFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(txt => {
+    const d = JSON.parse(txt);
+    rec = d.rec || d; analysis = d.analysis || null;
+    ui = { phase: 'over', handIdx: 0, selected: null, cursor: null, moves: [], last: null, gen: (ui?.gen || 0) + 1 };
+    st = REC.replay(rec)[rec.actions.length];
+    $('log').innerHTML = ''; log('기록 불러옴: ' + (rec.meta && rec.meta.t || ''));
+    $('replayBtn').disabled = $('anBtn').disabled = false;
+    if (analysis) { $('anPanel').style.display = 'block'; $('prog').textContent = `(불러옴, 세계 ${analysis.W}개)`; startReplay(analysis.idx[0]); drawChart(); listMoves(); }
+    else render();
+  });
+};
+
+// ---------- 렌더링 ----------
+function tag(s, p) {
+  return s.setup.first === p ? '<span class="tag first">선공</span>' : '<span class="tag second">후공</span>';
+}
+function pileEl(title, cards) {
+  const d = document.createElement('div'); d.className = 'pile';
+  d.innerHTML = `<div>${title} (${cards.length})</div>`;
+  const cs = document.createElement('div'); cs.className = 'cards';
+  cs.append(...sortCards(cards).map(c => cardEl(c, { small: true })));
+  d.append(cs); return d;
+}
+function playerZone(el, p, s) {
+  const a = E.actor(s);
+  el.className = 'zone' + (!s.over && !view && a.t === 'P' && a.o === p ? ' active' : '');
+  el.innerHTML = `<h2>${p === HUMAN ? '나' : 'AI'} ${tag(s, p)} — 패 ${s.hands[p].length}장</h2>`;
+  const row = document.createElement('div'); row.className = 'row';
+  const hand = document.createElement('div'); hand.className = 'cards hand';
+  const played = view && view.k < rec.actions.length && rec.actions[view.k].t === 'P' && rec.actions[view.k].o === p ? rec.actions[view.k].card : null;
+  if (p === HUMAN && !view) {
+    const cards = humanHand();
+    const canAct = ui.phase === 'hand' || ui.phase === 'target';
+    cards.forEach((c, i) => {
+      const ce = cardEl(c);
+      if (canAct) {
+        if (i === ui.handIdx && ui.phase === 'hand') ce.classList.add('focus');
+        if (c === ui.selected) ce.classList.add('selected');
+        if (!movesForCard(c).length) ce.classList.add('dead');
+        ce.onclick = () => selectCard(i);
+      }
+      hand.append(ce);
+    });
+  } else if (view || s.over || p === HUMAN) {
+    sortCards(s.hands[p]).forEach(c => { const ce = cardEl(c); if (played === c.r + c.s) ce.classList.add('played'); hand.append(ce); });
+  } else hand.append(...s.hands[p].map(() => cardEl(null)));
+  row.append(hand);
+  el.append(row);
+  const piles = document.createElement('div'); piles.className = 'row'; piles.style.marginTop = '6px';
+  piles.append(pileEl('시장', s.market[p]), pileEl('레벨', s.level[p]));
+  el.append(piles);
+}
+function compZone(el, o, s) {
+  const c = s.comp[o], a = E.actor(s);
+  el.className = 'zone' + (!s.over && !view && a.t === 'C' && a.o === o ? ' active' : '');
+  el.innerHTML = `<h2>${o === HUMAN ? '내' : 'AI'} 동반자</h2>`;
+  const wrap = document.createElement('div');
+  wrap.className = 'comp-card' + (c.tamed ? ' tamed' : '');
+  wrap.append(c.deck.length ? cardEl(c.deck[0]) : document.createTextNode('(없음)'));
+  el.append(wrap);
+  const info = document.createElement('div'); info.style.fontSize = '12px';
+  info.innerHTML = `남은 ${c.deck.length}장` + (c.tamed ? '<br><span class="tag tame">길들여짐</span>' : '') +
+    (!view && ui.phase === 'comp' && o === HUMAN && ui.wild ? '<br><span class="tag wild">와일드</span>' : '');
+  el.append(info);
+}
+function renderGrid(s) {
+  const g = $('grid');
+  g.replaceChildren();
+  const legal = new Set(view ? [] : ui.moves.map(moveKey));
+  const hint = new Set();
+  if (!view && ui.phase === 'hand' && s.hands.A.length) {
+    for (const m of movesForCard(humanHand()[ui.handIdx])) hint.add(moveKey(m));
+  }
+  let lastKey = ui.last, bestKey = null;
+  if (view) {
+    const a = view.k > 0 ? rec.actions[view.k - 1] : null;
+    lastKey = a && (a.t === 'P' || a.t === 'C') ? (a.kind === 'push' ? a.edge : 'C' + a.cell) : null;
+    if (view.bestKey && analysis && analysis.results[view.k]) { const p = view.bestKey.split('|'); if (p[1] === 'push') bestKey = p[2]; else if (p[1] === 'cover') bestKey = 'C' + p[2]; }
+  }
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+    const key = LAYOUT[r][c];
+    const d = document.createElement('div');
+    if (!key) { g.append(d); continue; }
+    d.className = 'slot ' + (key[0] === 'C' ? 'cell' : 'edge');
+    if (legal.has(key)) { d.classList.add('legal'); d.onclick = () => chooseTarget(key); }
+    else if (hint.has(key)) d.classList.add('hint');
+    if (!view && ui.cursor && ui.cursor[0] === r && ui.cursor[1] === c && (ui.phase === 'target' || ui.phase === 'comp')) d.classList.add('cursor');
+    if (lastKey === key) d.classList.add('last');
+    if (bestKey === key) d.classList.add('bestmark');
+    if (key[0] === 'C') {
+      const i = +key[1], stack = s.board[i];
+      const off = stack.length > 1 ? Math.min(24, 126 / (stack.length - 1)) : 0;
+      d.classList.add('stack');
+      stack.forEach((card, k) => {
+        const ce = cardEl(card); ce.style.top = (6 + k * off) + 'px'; d.append(ce);
+      });
+      d.insertAdjacentHTML('beforeend', `<span class="cname">${CELL_NAME[i]}</span>` +
+        (stack.length > 1 ? `<span class="cnum">${stack.length}장</span>` : ''));
+    } else {
+      d.textContent = ARROW[key[0]] + (bestKey === key ? ' ★' : '');
+    }
+    g.append(d);
+  }
+}
+function renderSide(s) {
+  const su = s.setup, me = HUMAN, op = BOT;
+  let txt = `내 문자카드(JQKA) ${su.letters[me]}장 · A ${su.aces[me]}장<br>`;
+  if (st.over) txt += `AI 문자카드 ${su.letters[op]}장 · A ${su.aces[op]}장`;
+  else if (su.first === me) txt += `나는 <b>선공</b> — AI(후공)의 문자카드는 정확히 <b>${su.letters[op]}장</b>`;
+  else txt += `나는 <b>후공</b> — AI(선공)는 나보다 문자카드가 <b>많다</b>`;
+  $('setupInfo').innerHTML = txt;
+
+  const domA = new Set(E.dominant(s, 'A')), domB = new Set(E.dominant(s, 'B'));
+  let t = '<table><tr><th></th>' + E.SUITS.map(x => `<th>${x}</th>`).join('') + '</tr>';
+  for (const [p, dom] of [['A', domA], ['B', domB]]) {
+    t += `<tr><td>${NAME[p]}</td>` + E.SUITS.map(x =>
+      `<td class="${dom.has(x) ? 'dom' : ''}">${s.level[p].filter(c => c.s === x).length}</td>`).join('') + '</tr>';
+  }
+  t += '</table>';
+  t += `<div>상대 우위 문양이 줄에 있으면 <b>더 커야</b> 밀 수 있음.<br>` +
+       `내가 밀 때 적용: ${[...domB].join(' ') || '없음'} · AI가 밀 때 적용: ${[...domA].join(' ') || '없음'}</div>`;
+  $('levels').innerHTML = t;
+
+  const { suits, ranks } = E.scoringConditions(s);
+  const cond = [...suits.map(x => `${x}짝`), ...ranks.map(x => `${x}짝(×3)`)].join(', ') || '없음';
+  const now = E.finalResult(s, 'now', null);
+  const nowTxt = now.winner === HUMAN ? '내 승' : now.winner === BOT ? 'AI 승' : '무승부';
+  $('scoreInfo').innerHTML =
+    `짝: ${cond}<br>나 <b>${E.score(s, 'A')}</b>점 (시장 ${s.market.A.length}장) · AI <b>${E.score(s, 'B')}</b>점 (시장 ${s.market.B.length}장) · 지금 끝나면 <b>${nowTxt}</b>`;
+
+  let status;
+  if (view) status = `복기 중 (${view.k}/${rec.actions.length})`;
+  else if (st.over) {
+    const r = st.over;
+    const w = r.winner === HUMAN ? '🎉 승리!' : r.winner === BOT ? '패배' : '무승부';
+    const how = r.score.A === r.score.B && r.winner ? ' (동점 → 시장 카드가 적은 쪽 승)' : '';
+    status = `${w} 나 ${r.score.A} : AI ${r.score.B}${how}`;
+  } else if (ui.phase === 'hand') status = '내 차례 — 낼 카드를 고르세요' + (ui.info.canDeclareEnd ? ' (밀기 불가: 종료 선언 가능)' : '');
+  else if (ui.phase === 'target') status = `${cstr(ui.selected)} — 놓을 칸을 고르세요`;
+  else if (ui.phase === 'comp') status = `내 동반자(${cstr(ui.moves[0].card)}) — 후보 중 하나를 고르세요` + (ui.wild ? ' [와일드]' : '');
+  else if (ui.phase === 'ai') status = 'AI 생각 중…';
+  else if (ui.phase === 'alloc') status = '획득 카드 배분';
+  else { const a = E.actor(s); status = a.t === 'C' ? `${a.o === HUMAN ? '내' : 'AI'} 동반자 차례` : '…'; }
+  $('status').textContent = status;
+  $('endBtn').disabled = !!view || !(ui.phase === 'hand' || ui.phase === 'target') || !ui.info.canDeclareEnd;
+}
+function render() {
+  const s = view ? rpStates()[view.k] : st;
+  playerZone($('north'), BOT, s);
+  playerZone($('south'), HUMAN, s);
+  compZone($('east'), HUMAN, s);
+  compZone($('west'), BOT, s);
+  renderGrid(s);
+  renderSide(s);
+}
+
+$('newBtn').onclick = newGame;
+$('endBtn').onclick = () => {
+  if ((ui.phase === 'hand' || ui.phase === 'target') && ui.info.canDeclareEnd) finish('declared', HUMAN);
+};
+newGame();
+</script>
+</body>
+</html>
